@@ -196,7 +196,12 @@ run_specific_rebase () {
 		export GIT_EDITOR
 		autosquash=
 	fi
-	. git-rebase--$type
+	if test "$type" = interactive
+	then
+		. git-rebase--${type}${preserve_merges:+--preserve-merges}
+	else
+		. git-rebase--${type}
+	fi
 	ret=$?
 	if test $ret -eq 0
 	then

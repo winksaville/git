@@ -116,6 +116,7 @@
 /git-rebase--am
 /git-rebase--helper
 /git-rebase--interactive
+/git-rebase--interactive--preserve-merges
 /git-rebase--interactive--lib
 /git-rebase--merge
 /git-receive-pack
