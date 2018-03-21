@@ -196,8 +196,15 @@ run_specific_rebase () {
 		export GIT_EDITOR
 		autosquash=
 	fi
-	. git-rebase--$type
-	ret=$?
+	if test "$type" = interactive
+	then
+		. git-rebase--interactive
+		git_rebase__interactive
+		ret=$?
+	else
+		. git-rebase--$type
+		ret=$?
+	fi
 	if test $ret -eq 0
 	then
 		finish_rebase
