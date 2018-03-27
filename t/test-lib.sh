@@ -680,10 +680,37 @@ test_run_ () {
 		trace=$trace_tmp
 	fi
 
+	if test "$BDL_LOADED" = "t"
+	then
+		# Save meta data
+		bdl_save
+
+		# Set meta data to fudge line numbers when bdl is used in tests.
+		bdl_call_depth=4
+		bdl_call_lineno_offset_array_idx=0
+		bdl_call_lineno_offset_array=()
+
+		# Read the script and find lines that begin with "bdl "
+		# and compute their offsets and saving them in an array
+		# that bdl will use to compute compute the lineno.
+		IFS=$'\n' read -d '' -r -a test_run_script_array <<< "$@"
+		for i in "${!test_run_script_array[@]}"; do
+			ln=${test_run_script_array[$i]}
+			tln="$(sed -e 's/^[[:space:]]*//' <<<$ln)"
+			if [[ "$tln" =~ ^bdl\  ]]
+			then
+				bdl_call_lineno_offset_array+=($i+1)
+			fi
+		done
+	fi
+
 	setup_malloc_check
 	test_eval_ "$1"
 	eval_ret=$?
 	teardown_malloc_check
+
+	# Restore bdl meta data
+	test "$BDL_LOADED" = "t" && bdl_restore
 
 	if test -z "$immediate" || test $eval_ret = 0 ||
 	   test -n "$expecting_failure" && test "$test_cleanup" != ":"

@@ -86,6 +86,8 @@
 #  bdl--exmpl.sh:46: 0
 # ##################################################################
 
+BDL_LOADED=t
+
 # Prompt waitng for a return, q will exit
 bdl_pause () {
 	read -p "Line ${BASH_LINENO}: $@" bdl_pause_v_
@@ -96,6 +98,10 @@ bdl_pause () {
 [[ "$bdl_stdout" == "" ]] && bdl_stdout=1
 [[ "$bdl_call_depth" == "" ]] && bdl_call_depth=0
 [[ "$bdl_call_stack" == "" ]] && bdl_call_stack=f
+bdl_call_lineno_offset_array=()
+bdl_call_lineno_offset_array_idx=0
+bdl_call_save=()
+bdl_call_save_idx=0
 
 # Write debug info with no source or line number
 bdl_nsl () {
@@ -128,12 +134,27 @@ bdl_nsl () {
 	return 0
 }
 
+bdl_save () {
+	bdl_call_save[$bdl_call_save_idx]="bdl_call_depth=$bdl_call_depth; \
+bdl_call_lineno_offset_array=(${bdl_call_lineno_offset_array[*]}); \
+bdl_call_lineno_offset_array_idx=$bdl_call_lineno_offset_array_idx"
+	bdl_call_save_idx=$((bdl_call_save_idx+1))
+	bdl_call_depth=0
+	bdl_call_lineno_offset_array=()
+	bdl_call_lineno_offset_array_idx=0
+}
+
+bdl_restore () {
+	bdl_call_save_idx=$((bdl_call_save_idx-1))
+	eval "${bdl_call_save[$bdl_call_save_idx]}"
+}
+
 # Write debug info with file name and line number.
 bdl () {
 	#View the call stack
 	if test "$bdl_call_stack" != "f"
 	then
-		for ((i=0; i<=${#BASH_SOURCE[@]}-1; i++)); do
+		for i in "${!BASH_SOURCE[@]}"; do
 			(( $i == 0 )) && ln=${LINENO} || ln=${BASH_LINENO[${i}-1]}
 			bdl_nsl "[$i] ${BASH_SOURCE[$i]##*/}:${FUNCNAME[$i]}:${ln}"
 		done
@@ -145,14 +166,19 @@ bdl () {
        	# file name and line number which can be useful
 	# to know a line was processed but there is no need
 	# to print any other data.
+	bdl_ln=${BASH_LINENO[${bdl_call_depth}]}
+	if (( ${bdl_call_lineno_offset_array_idx} < ${#bdl_call_lineno_offset_array[@]} ))
+	then
+		bdl_offset=${bdl_call_lineno_offset_array[$bdl_call_lineno_offset_array_idx]}
+		bdl_ln=$((bdl_ln+bdl_offset))
+		bdl_call_lineno_offset_array_idx=$((bdl_call_lineno_offset_array_idx+1))
+	fi
 	if (( $# <= 1 )); then
-		bdl_nsl $bdl_dst "${BASH_SOURCE[${bdl_call_depth}+1]##*/}:\
-${BASH_LINENO[${bdl_call_depth}+0]}:${@:+ }$@"
+		bdl_nsl $bdl_dst "${BASH_SOURCE[${bdl_call_depth}+1]##*/}:${bdl_ln}:${@:+ }$@"
 	else
 		v_=$1
 		shift
-		bdl_nsl $v_ "${BASH_SOURCE[${bdl_call_depth}+1]##*/}:\
-${BASH_LINENO[${bdl_call_depth}+0]}:${@:+ }$@"
+		bdl_nsl $v_ "${BASH_SOURCE[${bdl_call_depth}+1]##*/}:${bdl_ln}:${@:+ }$@"
 	fi
 	return 0
 }
