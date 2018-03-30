@@ -680,7 +680,7 @@ test_run_ () {
 		trace=$trace_tmp
 	fi
 
-	test "$BDL_LOADED" = "t" && bdl_push 4 "$@"
+	test "$BDL_LOADED" = "t" && bdl_push 4 "$@"; set -- "$bdl_push_result"
 
 	setup_malloc_check
 	test_eval_ "$1"

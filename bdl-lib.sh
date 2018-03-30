@@ -98,10 +98,11 @@ bdl_pause () {
 [[ "$bdl_stdout" == "" ]] && bdl_stdout=1
 [[ "$bdl_call_depth" == "" ]] && bdl_call_depth=0
 [[ "$bdl_call_stack_view" == "" ]] && bdl_call_stack_view=f
+[[ "$bdl_push_result" == "" ]] && bdl_dst=
+
 
 # Initialize priviate bdl variables
 _bdl_call_lineno_offset_array=()
-_bdl_call_lineno_offset_array_idx=0
 _bdl_call_save=()
 _bdl_call_save_idx=0
 
@@ -112,33 +113,29 @@ _bdl_call_save_idx=0
 #    will be found and used to compute lineno info.
 bdl_push () {
 	# Push the bdl data
-	_bdl_call_save[$_bdl_call_save_idx]="bdl_dst=$bdl_dst; \
+	_bdl_call_save[${_bdl_call_save_idx}]="bdl_dst=${bdl_dst}; \
 bdl_stdout=$bdl_stdout; \
 bdl_call_depth=$bdl_call_depth; \
-bdl_call_stack_view=$bdl_call_stack_view; \
-_bdl_call_lineno_offset_array=(${_bdl_call_lineno_offset_array[*]}); \
-_bdl_call_lineno_offset_array_idx=$_bdl_call_lineno_offset_array_idx"
+bdl_call_stack_view=$bdl_call_stack_view"
 	_bdl_call_save_idx=$((_bdl_call_save_idx+1))
 
-	# Set meta data to fudge line numbers when bdl is used in tests.
+	# Set call depth
 	bdl_call_depth=$1
 	shift
-	_bdl_call_lineno_offset_array_idx=0
-	_bdl_call_lineno_offset_array=()
 
 	if test "$1" != ""
 	then
-		# Read the script and find lines that begin with "bdl "
-		# and compute their offsets and saving them in an array
-		# that bdl will use to compute compute the lineno.
+		# Convert "bdl to bdl slo@=<source line offset> so
+		# bdl can compute line line number.
 		IFS=$'\n' read -d '' -r -a test_run_script_array <<< "$@"
+		bdl_push_result=
 		for i in "${!test_run_script_array[@]}"; do
 			ln=${test_run_script_array[$i]}
-			tln="$(sed -e 's/^[[:space:]]*//' <<<$ln)"
-			if [[ "$tln" =~ ^bdl\  ]]
-			then
-				_bdl_call_lineno_offset_array+=$((i+1))
-			fi
+			# TODO: How to ignore "bdl slo@=x", which is
+			# now incorrectly converted to "bdl slo@=x slo@=y"
+			ln=$(sed -E "s/([[:space:]]*)bdl([[:space:]]+|$)/\1bdl slo@=$((i+1))\2/g" <<< "$ln")
+			bdl_push_result+=$(echo "$ln")
+			bdl_push_result+=$'\n'
 		done
 	fi
 }
@@ -182,8 +179,8 @@ bdl_nsl () {
 
 # Write debug info with file name and line number.
 bdl () {
-	#View the call stack
-	if test "$bdl_call_stack_view" != "f"
+	# View the call stack
+	if test "${bdl_call_stack_view}" != "f"
 	then
 		for i in "${!BASH_SOURCE[@]}"; do
 			(( $i == 0 )) && ln=${LINENO} || ln=${BASH_LINENO[${i}-1]}
@@ -191,19 +188,18 @@ bdl () {
 		done
 	fi
 
-	# The ${@:+ } only adds a space if $@ isn't empty.
-	# This is done because We allow the call to bdl to
-	# have no parameters and bdl then just prints the
-       	# file name and line number which can be useful
-	# to know a line was processed but there is no need
-	# to print any other data.
+	# Process named parameter which must be the first parameter
+	case $1 in
+		slo@=*) bdl_offset="${1##*slo@=}" shift ;;
+	esac
+
 	bdl_ln=${BASH_LINENO[${bdl_call_depth}]}
-	if (( ${_bdl_call_lineno_offset_array_idx} < ${#_bdl_call_lineno_offset_array[@]} ))
+	if test "$bdl_offset" != ""
 	then
-		bdl_offset=${_bdl_call_lineno_offset_array[$_bdl_call_lineno_offset_array_idx]}
 		bdl_ln=$((bdl_ln+bdl_offset))
-		_bdl_call_lineno_offset_array_idx=$((_bdl_call_lineno_offset_array_idx+1))
+		bdl_offset=
 	fi
+
 	if (( $# <= 1 )); then
 		bdl_nsl $bdl_dst "${BASH_SOURCE[${bdl_call_depth}+1]##*/}:${bdl_ln}:${@:+ }$@"
 	else

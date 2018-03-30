@@ -13,12 +13,6 @@ fi
 
 . ./test-lib.sh
 
-test_expect_success 'do nothing' '
-	printf "" >output &&
-	printf "" >expected &&
-	test_cmp expected output
-'
-
 # Only execute if shell is bash
 if test "$BASH_VERSION" != ""
 then
@@ -38,10 +32,59 @@ test_expect_success 'bdl_nsl with string prints string only' '
 '
 
 test_lineno=$LINENO
-test_expect_success 'bdl only print source and linenumber' '
+test_expect_success 'bdl only print source and linenumber one leading tab' '
 	printf "" >output &&
 	bdl &&
 	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >expected &&
+	test_cmp expected output
+'
+
+test_lineno=$LINENO
+test_expect_success 'bdl two on one line' '
+	printf "" >output &&
+	bdl && bdl &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >expected &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >>expected &&
+	test_cmp expected output
+'
+
+test_lineno=$LINENO
+test_expect_success 'bdl multiple paths only one executed and no trailing space' '
+	printf "" >output &&
+	if test "t" = "f"
+	then
+		bdl
+		printf "t0014-bdl-lib.sh:$((test_lineno+5)):\n" >expected
+		test_cmp expected output
+	else
+		bdl
+		printf "t0014-bdl-lib.sh:$((test_lineno+9)):\n" >expected
+		test_cmp expected output
+	fi
+'
+
+test_lineno=$LINENO
+test_expect_failure 'bdl with slo@= not allowed at this time, expect failure' '
+	printf "" >output &&
+	bdl slo@=2 &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >expected &&
+	test_cmp expected output
+'
+
+test_lineno=$LINENO
+test_expect_success 'bdl only print source and linenumber' '
+	printf "" >output &&
+	bdl "hi" &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)): hi\n" >expected &&
+	test_cmp expected output
+'
+
+test_lineno=$LINENO
+test_expect_success 'bdl two on one line' '
+	printf "" >output &&
+	bdl "hi" && bdl "bye" &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)): hi\n" >expected &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)): bye\n" >>expected &&
 	test_cmp expected output
 '
 
@@ -61,9 +104,7 @@ test_expect_success 'bdl 0 "nothing printed"' '
 '
 
 # Save current bdl_dst and restore when test completes
-#bdl_dst_save=$bdl_dst
-#bdl_stdout_save=$bdl_stdout
-bdl_push
+bdl_push 0
 test_expect_success 'bdl bdl_dst empty bdl_stdout=0 nothing printed' '
 	bdl_dst= &&
 	bdl_stdout=0 &&
@@ -72,8 +113,6 @@ test_expect_success 'bdl bdl_dst empty bdl_stdout=0 nothing printed' '
 	bdl "nothing printed" &&
 	test_cmp expected output
 '
-#bdl_dst=$bdl_dst_save
-#bdl_stdout=$bdl_stdout_save
 bdl_pop
 
 # Testing subroutine calls from a test verify bdl_push/pop works
