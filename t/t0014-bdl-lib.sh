@@ -64,9 +64,17 @@ test_expect_success 'bdl multiple paths only one executed and no trailing space'
 '
 
 test_lineno=$LINENO
-test_expect_failure 'bdl with slo@= not allowed at this time, expect failure' '
+test_expect_success 'bdl with slo@=xx' '
 	printf "" >output &&
 	bdl slo@=2 &&
+	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >expected &&
+	test_cmp expected output
+'
+
+test_lineno=$LINENO
+test_expect_success 'bdl with slo@=xx, xx is replaced with correct value' '
+	printf "" >output &&
+	bdl slo@=12 &&
 	printf "t0014-bdl-lib.sh:$((test_lineno+3)):\n" >expected &&
 	test_cmp expected output
 '

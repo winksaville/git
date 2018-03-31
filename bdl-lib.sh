@@ -131,9 +131,7 @@ bdl_call_stack_view=$bdl_call_stack_view"
 		bdl_push_result=
 		for i in "${!test_run_script_array[@]}"; do
 			ln=${test_run_script_array[$i]}
-			# TODO: How to ignore "bdl slo@=x", which is
-			# now incorrectly converted to "bdl slo@=x slo@=y"
-			ln=$(sed -E "s/([[:space:]]*)bdl([[:space:]]+|$)/\1bdl slo@=$((i+1))\2/g" <<< "$ln")
+			ln=$(sed -E "s/(\s*)bdl slo@=[[:digit:]]+(\s+|$)|(\s*)bdl(\s+|$)/\1\3bdl slo@=$((i+1))\2\4/g" <<< "$ln")
 			bdl_push_result+=$(echo "$ln")
 			bdl_push_result+=$'\n'
 		done
