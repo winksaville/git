@@ -77,11 +77,25 @@ test_expect_success GETTEXT_LOCALE 'gettext.c: git init UTF-8 -> UTF-8' '
     grep "^$(cat expect) " actual
 '
 
-test_expect_success GETTEXT_ISO_LOCALE 'gettext.c: git init UTF-8 -> ISO-8859-1' '
+#test_expect_success GETTEXT_ISO_LOCALE 'gettext.c: git init UTF-8 -> ISO-8859-1' '
+test_expect_success 'gettext.c: git init UTF-8 -> ISO-8859-1' '
+    echo "GETTEXT_ISO_LOCALE=$GETTEXT_ISO_LOCALE" 1>&5 &&
+    iconv --version 1>&5 &&
+    grep --version 1>&5  &&
+    git --version 1>&5 &&
     printf "Bjó til tóma Git lind" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_iso_locale" git init repo >actual &&
-    test_when_finished "rm -rf repo" &&
-    grep "^$(cat expect | iconv -f UTF-8 -t ISO8859-1) " actual
+    LANGUAGE=is &&
+    LC_ALL="$is_IS_iso_locale" &&
+    echo "LANGUAGE=$LANGUAGE LC_ALL=$LC_ALL" 1>&5 &&
+    git init repo >actual &&
+    printf "$(cat expect | iconv -f UTF-8 -t ISO8859-1) " >converted &&
+    printf "converted:\n%s\n" "$(xxd -g 1 converted)" 1>&5 &&
+    printf "actual:\n%s\n" "$(xxd -g 1 actual)" 1>&5 &&
+    printf "expect:\n%s\n" "$(xxd -g 1 expect)" 1>&5 &&
+    grep "^$(cat converted)" actual &&
+    printf "beginning of converted is same as actual\n" 1>&5 &&
+    grep "^$(cat expect)" actual &&
+    printf "beginning of expect is same as actual\n" 1>&5
 '
 
 test_done

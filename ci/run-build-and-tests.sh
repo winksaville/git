@@ -5,8 +5,9 @@
 
 . ${0%/*}/lib-travisci.sh
 
-ln -s "$cache_dir/.prove" t/.prove
+ln -sf "$cache_dir/.prove" t/.prove
 
 make --jobs=2
 cd t
-prove --timer --jobs 2 ./t001*.sh ./t0050*.sh ./t0204*.sh ./t9822*.sh
+
+DEFAULT_TEST_TARGET="./t001*.sh ./t0204*.sh" make
