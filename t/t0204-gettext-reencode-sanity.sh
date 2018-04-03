@@ -12,76 +12,90 @@ RUNES="TILRAUN: ᚻᛖ ᚳᚹᚫᚦ ᚦᚫᛏ ᚻᛖ ᛒᚢᛞᛖ ᚩᚾ ᚦᚫ�
 PUNTS="TILRAUN: ?? ???? ??? ?? ???? ?? ??? ????? ??????????? ??? ?? ????"
 MSGKEY="TEST: Old English Runes"
 
-test_expect_success GETTEXT_LOCALE 'gettext: Emitting UTF-8 from our UTF-8 *.mo files / Icelandic' '
-    printf "TILRAUN: Halló Heimur!" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "TEST: Hello World!" >actual &&
-    test_cmp expect actual
-'
-
-test_expect_success GETTEXT_LOCALE 'gettext: Emitting UTF-8 from our UTF-8 *.mo files / Runes' '
-    printf "%s" "$RUNES" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "$MSGKEY" >actual &&
-    test_cmp expect actual
-'
-
-test_expect_success GETTEXT_ISO_LOCALE 'gettext: Emitting ISO-8859-1 from our UTF-8 *.mo files / Icelandic' '
-    printf "TILRAUN: Halló Heimur!" | iconv -f UTF-8 -t ISO8859-1 >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "TEST: Hello World!" >actual &&
-    test_cmp expect actual
-'
-
-test_expect_success GETTEXT_ISO_LOCALE 'gettext: impossible ISO-8859-1 output' '
-	LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "$MSGKEY" >runes &&
-	case "$(cat runes)" in
-	"$MSGKEY")
-		say "Your system gives back the key to message catalog"
-		;;
-	"$PUNTS")
-		say "Your system replaces an impossible character with ?"
-		;;
-	"$RUNES")
-		say "Your system gives back the raw message for an impossible request"
-		;;
-	*)
-		say "We never saw the error behaviour your system exhibits"
-		false
-		;;
-	esac
-'
-
-test_expect_success GETTEXT_LOCALE 'gettext: Fetching a UTF-8 msgid -> UTF-8' '
-    printf "TILRAUN: ‚einfaldar‘ og „tvöfaldar“ gæsalappir" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "TEST: ‘single’ and “double” quotes" >actual &&
-    test_cmp expect actual
-'
-
-# How these quotes get transliterated depends on the gettext implementation:
+#test_expect_success GETTEXT_LOCALE 'gettext: Emitting UTF-8 from our UTF-8 *.mo files / Icelandic' '
+#    printf "TILRAUN: Halló Heimur!" >expect &&
+#    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "TEST: Hello World!" >actual &&
+#    test_cmp expect actual
+#'
 #
-#   Debian:  ,einfaldar' og ,,tvöfaldar" [GNU libintl]
-#   FreeBSD: `einfaldar` og "tvöfaldar"  [GNU libintl]
-#   Solaris: ?einfaldar? og ?tvöfaldar?  [Solaris libintl]
+#test_expect_success GETTEXT_LOCALE 'gettext: Emitting UTF-8 from our UTF-8 *.mo files / Runes' '
+#    printf "%s" "$RUNES" >expect &&
+#    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "$MSGKEY" >actual &&
+#    test_cmp expect actual
+#'
 #
-# Just make sure the contents are transliterated, and don't use grep -q
-# so that these differences are emitted under --verbose for curious
-# eyes.
-test_expect_success GETTEXT_ISO_LOCALE 'gettext: Fetching a UTF-8 msgid -> ISO-8859-1' '
-    LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "TEST: ‘single’ and “double” quotes" >actual &&
-    grep "einfaldar" actual &&
-    grep "$(echo tvöfaldar | iconv -f UTF-8 -t ISO8859-1)" actual
-'
+#test_expect_success GETTEXT_ISO_LOCALE 'gettext: Emitting ISO-8859-1 from our UTF-8 *.mo files / Icelandic' '
+#    printf "TILRAUN: Halló Heimur!" | iconv -f UTF-8 -t ISO8859-1 >expect &&
+#    LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "TEST: Hello World!" >actual &&
+#    test_cmp expect actual
+#'
+#
+#test_expect_success GETTEXT_ISO_LOCALE 'gettext: impossible ISO-8859-1 output' '
+#	LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "$MSGKEY" >runes &&
+#	case "$(cat runes)" in
+#	"$MSGKEY")
+#		say "Your system gives back the key to message catalog"
+#		;;
+#	"$PUNTS")
+#		say "Your system replaces an impossible character with ?"
+#		;;
+#	"$RUNES")
+#		say "Your system gives back the raw message for an impossible request"
+#		;;
+#	*)
+#		say "We never saw the error behaviour your system exhibits"
+#		false
+#		;;
+#	esac
+#'
+#
+#test_expect_success GETTEXT_LOCALE 'gettext: Fetching a UTF-8 msgid -> UTF-8' '
+#    printf "TILRAUN: ‚einfaldar‘ og „tvöfaldar“ gæsalappir" >expect &&
+#    LANGUAGE=is LC_ALL="$is_IS_locale" gettext "TEST: ‘single’ and “double” quotes" >actual &&
+#    test_cmp expect actual
+#'
+#
+## How these quotes get transliterated depends on the gettext implementation:
+##
+##   Debian:  ,einfaldar' og ,,tvöfaldar" [GNU libintl]
+##   FreeBSD: `einfaldar` og "tvöfaldar"  [GNU libintl]
+##   Solaris: ?einfaldar? og ?tvöfaldar?  [Solaris libintl]
+##
+## Just make sure the contents are transliterated, and don't use grep -q
+## so that these differences are emitted under --verbose for curious
+## eyes.
+#test_expect_success GETTEXT_ISO_LOCALE 'gettext: Fetching a UTF-8 msgid -> ISO-8859-1' '
+#    LANGUAGE=is LC_ALL="$is_IS_iso_locale" gettext "TEST: ‘single’ and “double” quotes" >actual &&
+#    grep "einfaldar" actual &&
+#    grep "$(echo tvöfaldar | iconv -f UTF-8 -t ISO8859-1)" actual
+#'
+#
+#test_expect_success GETTEXT_LOCALE 'gettext.c: git init UTF-8 -> UTF-8' '
+#    printf "Bjó til tóma Git lind" >expect &&
+#    LANGUAGE=is LC_ALL="$is_IS_locale" git init repo >actual &&
+#    test_when_finished "rm -rf repo" &&
+#    grep "^$(cat expect) " actual
+#'
 
-test_expect_success GETTEXT_LOCALE 'gettext.c: git init UTF-8 -> UTF-8' '
+#test_expect_success GETTEXT_ISO_LOCALE 'gettext.c: git init UTF-8 -> ISO-8859-1' '
+test_expect_success 'gettext.c: git init UTF-8 -> ISO-8859-1' '
+    echo "GETTEXT_ISO_LOCALE=$GETTEXT_ISO_LOCALE" 1>&5 &&
+    iconv --version 1>&5 &&
+    grep --version 1>&5  &&
+    git --version 1>&5 &&
     printf "Bjó til tóma Git lind" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_locale" git init repo >actual &&
-    test_when_finished "rm -rf repo" &&
-    grep "^$(cat expect) " actual
-'
-
-test_expect_success GETTEXT_ISO_LOCALE 'gettext.c: git init UTF-8 -> ISO-8859-1' '
-    printf "Bjó til tóma Git lind" >expect &&
-    LANGUAGE=is LC_ALL="$is_IS_iso_locale" git init repo >actual &&
-    test_when_finished "rm -rf repo" &&
-    grep "^$(cat expect | iconv -f UTF-8 -t ISO8859-1) " actual
+    LANGUAGE=is &&
+    LC_ALL="$is_IS_iso_locale" &&
+    echo "LANGUAGE=$LANGUAGE LC_ALL=$LC_ALL" 1>&5 &&
+    git init repo >actual &&
+    printf "$(cat expect | iconv -f UTF-8 -t ISO8859-1) " >converted &&
+    printf "converted:\n%s\n" "$(xxd -g 1 converted)" 1>&5 &&
+    printf "actual:\n%s\n" "$(xxd -g 1 actual)" 1>&5 &&
+    printf "expect:\n%s\n" "$(xxd -g 1 expect)" 1>&5 &&
+    grep "^$(cat expect)" actual &&
+    printf "beginning of expect is same as actual\n" 1>&5 &&
+    grep "^$(cat converted)" actual &&
+    printf "beginning of converted is same as actual\n" 1>&5 # Printed of OK
 '
 
 test_done

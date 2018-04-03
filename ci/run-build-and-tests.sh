@@ -8,12 +8,7 @@
 ln -s "$cache_dir/.prove" t/.prove
 
 make --jobs=2
-make --quiet test
-if test "$jobname" = "linux-gcc"
-then
-	GIT_TEST_SPLIT_INDEX=YesPlease make --quiet test
-fi
-
-check_unignored_build_artifacts
-
-save_good_tree
+cd t
+./t0050-filesystem.sh
+./t0204-gettext-reencode-sanity.sh
+./t9822-git-p4-path-encoding.sh
