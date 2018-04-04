@@ -7,6 +7,11 @@
 
 ln -sf "$cache_dir/.prove" t/.prove
 
+echo "jobname=$jobname"
+if test "$jobname" = "osx-clang" || test "$jobname" = "osx-gcc"; then
+	system_profiler SPSoftwareDataType
+fi
+
 make --jobs=2
 cd t
 

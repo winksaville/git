@@ -83,6 +83,7 @@ test_expect_success 'gettext.c: git init UTF-8 -> ISO-8859-1' '
     iconv --version 1>&5 &&
     grep --version 1>&5  &&
     git --version 1>&5 &&
+    /bin/sh --version 1>&5 &&
     printf "Bjó til tóma Git lind" >expect &&
     LANGUAGE=is &&
     LC_ALL="$is_IS_iso_locale" &&
