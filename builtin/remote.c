@@ -11,7 +11,7 @@
 
 static const char * const builtin_remote_usage[] = {
 	N_("git remote [-v | --verbose]"),
-	N_("git remote add [-t <branch>] [-m <master>] [-f] [--tags | --no-tags] [--mirror=<fetch|push>] <name> <url>"),
+	N_("git remote add [-t <branch>] [-m <master>] [-f] [--tags | --remote-tags | --no-tags] [--mirror=<fetch|push>] <name> <url>"),
 	N_("git remote rename <old> <new>"),
 	N_("git remote remove <name>"),
 	N_("git remote set-head <name> (-a | --auto | -d | --delete | <branch>)"),
@@ -101,7 +101,8 @@ static int fetch_remote(const char *name)
 enum {
 	TAGS_UNSET = 0,
 	TAGS_DEFAULT = 1,
-	TAGS_SET = 2
+	TAGS_SET = 2,
+	TAGS_SET_REMOTE = 3
 };
 
 #define MIRROR_NONE 0
@@ -120,6 +121,14 @@ static void add_branch(const char *key, const char *branchname,
 	else
 		strbuf_addf(tmp, "refs/heads/%s:refs/remotes/%s/%s",
 				branchname, remotename, branchname);
+	git_config_set_multivar(key, tmp->buf, "^$", 0);
+}
+
+static void add_remote_tags(const char *key, const char *remotename,
+			    struct strbuf *tmp)
+{
+	strbuf_reset(tmp);
+	strbuf_addf(tmp, "+refs/tags/*:refs/remote-tags/%s/*", remotename);
 	git_config_set_multivar(key, tmp->buf, "^$", 0);
 }
 
@@ -161,6 +170,9 @@ static int add(int argc, const char **argv)
 		OPT_SET_INT(0, "tags", &fetch_tags,
 			    N_("import all tags and associated objects when fetching"),
 			    TAGS_SET),
+		OPT_SET_INT(0, "remote-tags", &fetch_tags,
+			    N_("import all tags and associated objects when fetching to refs/remote-tags/<name>/<tag>"),
+			    TAGS_SET_REMOTE),
 		OPT_SET_INT(0, NULL, &fetch_tags,
 			    N_("or do not fetch any tag at all (--no-tags)"), TAGS_UNSET),
 		OPT_STRING_LIST('t', "track", &track, N_("branch"),
@@ -182,6 +194,10 @@ static int add(int argc, const char **argv)
 		die(_("specifying a master branch makes no sense with --mirror"));
 	if (mirror && !(mirror & MIRROR_FETCH) && track.nr)
 		die(_("specifying branches to track makes sense only with fetch mirrors"));
+	if ((fetch_tags == TAGS_SET_REMOTE) && mirror)
+		die(_("specifying --remote-tags makes no sense with --mirror"));
+	if ((fetch_tags == TAGS_SET_REMOTE) && track.nr)
+		die(_("specifying --remote-tags makes no sense with -t or --track"));
 
 	name = argv[0];
 	url = argv[1];
@@ -215,10 +231,30 @@ static int add(int argc, const char **argv)
 	}
 
 	if (fetch_tags != TAGS_DEFAULT) {
+		if (fetch_tags == TAGS_SET_REMOTE) {
+			strbuf_reset(&buf);
+			strbuf_addf(&buf, "remote.%s.fetch", name);
+			add_remote_tags(buf.buf, name, &buf2);
+		}
+
 		strbuf_reset(&buf);
 		strbuf_addf(&buf, "remote.%s.tagopt", name);
-		git_config_set(buf.buf,
-			       fetch_tags == TAGS_SET ? "--tags" : "--no-tags");
+		char *config_val = NULL;
+		switch (fetch_tags) {
+		case TAGS_UNSET:
+			config_val = "--no-tags";
+			break;
+		case TAGS_SET:
+			config_val = "--tags";
+			break;
+		case TAGS_SET_REMOTE:
+			config_val = "--remote-tags";
+			break;
+		default:
+			die(_("Unexpected TAGS enum %d"), fetch_tags);
+			break;
+		}
+		git_config_set(buf.buf, config_val);
 	}
 
 	if (fetch && fetch_remote(name))
