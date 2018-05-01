@@ -1682,6 +1682,7 @@ static int match_pattern(const struct ref_filter *filter, const char *refname)
 	 * for matching refs of tags and branches.
 	 */
 	(void)(skip_prefix(refname, "refs/tags/", &refname) ||
+	       skip_prefix(refname, "refs/remote-tags/", &refname) ||
 	       skip_prefix(refname, "refs/heads/", &refname) ||
 	       skip_prefix(refname, "refs/remotes/", &refname) ||
 	       skip_prefix(refname, "refs/", &refname));
@@ -1866,7 +1867,8 @@ static int ref_kind_from_refname(const char *refname)
 	} ref_kind[] = {
 		{ "refs/heads/" , FILTER_REFS_BRANCHES },
 		{ "refs/remotes/" , FILTER_REFS_REMOTES },
-		{ "refs/tags/", FILTER_REFS_TAGS}
+		{ "refs/tags/", FILTER_REFS_TAGS},
+		{ "refs/remote-tags/", FILTER_REFS_REMOTE_TAGS}
 	};
 
 	if (!strcmp(refname, "HEAD"))
@@ -1884,7 +1886,8 @@ static int filter_ref_kind(struct ref_filter *filter, const char *refname)
 {
 	if (filter->kind == FILTER_REFS_BRANCHES ||
 	    filter->kind == FILTER_REFS_REMOTES ||
-	    filter->kind == FILTER_REFS_TAGS)
+	    filter->kind == FILTER_REFS_TAGS ||
+	    filter->kind == FILTER_REFS_REMOTE_TAGS)
 		return filter->kind;
 	return ref_kind_from_refname(refname);
 }
@@ -2053,6 +2056,8 @@ int filter_refs(struct ref_array *array, struct ref_filter *filter, unsigned int
 			ret = for_each_fullref_in("refs/remotes/", ref_filter_handler, &ref_cbdata, broken);
 		else if (filter->kind == FILTER_REFS_TAGS)
 			ret = for_each_fullref_in("refs/tags/", ref_filter_handler, &ref_cbdata, broken);
+		else if (filter->kind == FILTER_REFS_REMOTE_TAGS)
+			ret = for_each_fullref_in("refs/remote-tags/", ref_filter_handler, &ref_cbdata, broken);
 		else if (filter->kind & FILTER_REFS_ALL)
 			ret = for_each_fullref_in_pattern(filter, ref_filter_handler, &ref_cbdata, broken);
 		if (!ret && (filter->kind & FILTER_REFS_DETACHED_HEAD))
