@@ -574,6 +574,26 @@ test_expect_success 'add --tags' '
 '
 
 cat >test/expect <<\EOF
+origin/some-tag
+origin/foobar-tag
+--remote-tags
+EOF
+
+test_expect_success 'add --remote-tags' '
+	rm -rf add-tags &&
+	(
+		mkdir add-tags &&
+		cd add-tags &&
+		git init &&
+		git remote add -f --remote-tags origin ../one &&
+		git tag -l origin/some-tag >../test/output &&
+		git tag -l origin/foobar-tag >>../test/output &&
+		git config remote.origin.tagopt >>../test/output
+	) &&
+	test_cmp test/expect test/output
+'
+
+cat >test/expect <<\EOF
 --no-tags
 EOF
 
