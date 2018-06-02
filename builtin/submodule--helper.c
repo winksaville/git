@@ -1474,6 +1474,7 @@ static int update_clone_get_next_task(struct child_process *child,
 				      void *suc_cb,
 				      void **idx_task_cb)
 {
+	fprintf(stderr, "update_clone_get_next_task:+\n");
 	struct submodule_update_clone *suc = suc_cb;
 	const struct cache_entry *ce;
 	int index;
@@ -1485,6 +1486,7 @@ static int update_clone_get_next_task(struct child_process *child,
 			*p = suc->current;
 			*idx_task_cb = p;
 			suc->current++;
+			fprintf(stderr, "update_clone_get_next_task:-1 1\n");
 			return 1;
 		}
 	}
@@ -1503,15 +1505,18 @@ static int update_clone_get_next_task(struct child_process *child,
 			strbuf_addstr(err, "BUG: submodule considered for "
 					   "cloning, doesn't need cloning "
 					   "any more?\n");
+			fprintf(stderr, "update_clone_get_next_task:-0 2\n");
 			return 0;
 		}
 		p = xmalloc(sizeof(*p));
 		*p = suc->current;
 		*idx_task_cb = p;
 		suc->current ++;
+		fprintf(stderr, "update_clone_get_next_task:-1 3\n");
 		return 1;
 	}
 
+	fprintf(stderr, "update_clone_get_next_task:-0 b\n");
 	return 0;
 }
 
@@ -1519,8 +1524,10 @@ static int update_clone_start_failure(struct strbuf *err,
 				      void *suc_cb,
 				      void *idx_task_cb)
 {
+	fprintf(stderr, "update_clone_start_failure:+\n");
 	struct submodule_update_clone *suc = suc_cb;
 	suc->quickstop = 1;
+	fprintf(stderr, "update_clone_start_failure:-1\n");
 	return 1;
 }
 
@@ -1529,6 +1536,7 @@ static int update_clone_task_finished(int result,
 				      void *suc_cb,
 				      void *idx_task_cb)
 {
+	fprintf(stderr, "update_clone_task_finished:+\n");
 	const struct cache_entry *ce;
 	struct submodule_update_clone *suc = suc_cb;
 
@@ -1536,8 +1544,10 @@ static int update_clone_task_finished(int result,
 	int idx = *idxP;
 	free(idxP);
 
-	if (!result)
+	if (!result) {
+		fprintf(stderr, "update_clone_task_finished:-0 1\n");
 		return 0;
+	}
 
 	if (idx < suc->list.nr) {
 		ce  = suc->list.entries[idx];
@@ -1548,6 +1558,7 @@ static int update_clone_task_finished(int result,
 			   suc->failed_clones_nr + 1,
 			   suc->failed_clones_alloc);
 		suc->failed_clones[suc->failed_clones_nr++] = ce;
+		fprintf(stderr, "update_clone_task_finished:-0 2\n");
 		return 0;
 	} else {
 		idx -= suc->list.nr;
@@ -1556,9 +1567,11 @@ static int update_clone_task_finished(int result,
 			    ce->name);
 		strbuf_addch(err, '\n');
 		suc->quickstop = 1;
+		fprintf(stderr, "update_clone_task_finished:-1 3\n");
 		return 1;
 	}
 
+	fprintf(stderr, "update_clone_task_finished:-0 b\n");
 	return 0;
 }
 
@@ -1573,6 +1586,7 @@ static int gitmodules_update_clone_config(const char *var, const char *value,
 
 static int update_clone(int argc, const char **argv, const char *prefix)
 {
+	fprintf(stderr, "update_clone:+\n");
 	const char *update = NULL;
 	int max_jobs = 1;
 	struct string_list_item *item;
@@ -1623,17 +1637,21 @@ static int update_clone(int argc, const char **argv, const char *prefix)
 		if (parse_submodule_update_strategy(update, &suc.update) < 0)
 			die(_("bad value for update parameter"));
 
-	if (module_list_compute(argc, argv, prefix, &pathspec, &suc.list) < 0)
+	if (module_list_compute(argc, argv, prefix, &pathspec, &suc.list) < 0) {
+		fprintf(stderr, "update_clone:-1 2\n");
 		return 1;
+	}
 
 	if (pathspec.nr)
 		suc.warn_if_uninitialized = 1;
 
+	fprintf(stderr, "update_clone: before run_process_parallel\n");
 	run_processes_parallel(max_jobs,
 			       update_clone_get_next_task,
 			       update_clone_start_failure,
 			       update_clone_task_finished,
 			       &suc);
+	fprintf(stderr, "update_clone: after run_process_parallel\n");
 
 	/*
 	 * We saved the output and put it out all at once now.
@@ -1643,12 +1661,15 @@ static int update_clone(int argc, const char **argv, const char *prefix)
 	 *   checkout involve more straightforward sequential I/O.
 	 * - the listener can avoid doing any work if fetching failed.
 	 */
-	if (suc.quickstop)
+	if (suc.quickstop) {
+		fprintf(stderr, "update_clone:-1 2\n");
 		return 1;
+	}
 
 	for_each_string_list_item(item, &suc.projectlines)
 		fprintf(stdout, "%s", item->string);
 
+	fprintf(stderr, "update_clone:-0 b\n");
 	return 0;
 }
 
