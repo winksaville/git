@@ -12,6 +12,8 @@
 #include "tmp-objdir.h"
 #include "tree.h"
 
+#include "trace.h"
+
 static struct rev_info log_tree_opt;
 
 static int diff_tree_commit_oid(const struct object_id *oid)
@@ -122,6 +124,7 @@ int cmd_diff_tree(int argc,
 	int read_stdin = 0;
 	int merge_base = 0;
 
+	trace_printf("Wink cmd_diff_tree:+\n");
 	if (argc == 2 && !strcmp(argv[1], "-h"))
 		usage(diff_tree_usage);
 
@@ -235,5 +238,6 @@ int cmd_diff_tree(int argc,
 		diff_free(&opt->diffopt);
 	}
 
+	trace_printf("Wink cmd_diff_tree:-\n");
 	return diff_result_code(opt);
 }
