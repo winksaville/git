@@ -1500,11 +1500,33 @@ static struct combine_diff_path *combined_objfind(struct diff_options *opt,
 	return ret;
 }
 
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+void print_stack_trace(void) {
+    void *array[10];
+    size_t size;
+    char **strings;
+    size_t i;
+
+    size = backtrace(array, 10);
+    strings = backtrace_symbols(array, size);
+
+    printf("Stack trace:\n");
+    for (i = 0; i < size; i++) {
+        printf("  %s\n", strings[i]);
+    }
+
+    free(strings);
+}
+
 void diff_tree_combined(const struct object_id *oid,
 			const struct oid_array *parents,
 			struct rev_info *rev)
 {
 	trace_printf("Wink diff_tree_combined:+\n");
+	print_stack_trace();
 	struct diff_options *opt = &rev->diffopt;
 	struct diff_options diffopts;
 	struct combine_diff_path *p, *paths;
