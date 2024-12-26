@@ -789,11 +789,13 @@ static void execv_dashed_external(const char **argv)
 
 static int run_argv(struct strvec *args)
 {
+	trace_printf("Wink run_argv:+\n");
 	int done_alias = 0;
 	struct string_list cmd_list = STRING_LIST_INIT_DUP;
 	struct string_list_item *seen;
 
 	while (1) {
+		trace_printf("Wink run_argv: TOL\n");
 		/*
 		 * If we tried alias and futzed with our environment,
 		 * it no longer is safe to invoke builtins directly in
@@ -803,9 +805,13 @@ static int run_argv(struct strvec *args)
 		 * where it is safe to do, we can avoid spawning a new
 		 * process.
 		 */
-		if (!done_alias)
+		if (!done_alias) {
+			trace_printf("Wink run_argv: call handle_builtin: !done_alias is true\n");
 			handle_builtin(args);
+			trace_printf("Wink run_argv: retf handle_builtin: !done_alias is true\n");
+		}
 		else if (get_builtin(args->v[0])) {
+			trace_printf("Wink run_argv: !done_alias is false\n");
 			struct child_process cmd = CHILD_PROCESS_INIT;
 			int err;
 
@@ -838,6 +844,7 @@ static int run_argv(struct strvec *args)
 			if (err >= 0 || errno != ENOENT)
 				exit(err);
 			die("could not execute builtin %s", args->v[0]);
+			trace_printf("Wink run_argv: !done_alias is false COMPLETED\n");
 		}
 
 		/* .. then try the external ones */
@@ -873,11 +880,13 @@ static int run_argv(struct strvec *args)
 
 	string_list_clear(&cmd_list, 0);
 
+	trace_printf("Wink run_argv:-\n");
 	return done_alias;
 }
 
 int cmd_main(int argc, const char **argv)
 {
+	trace_printf("Wink cmd_main:+\n");
 	struct strvec args = STRVEC_INIT;
 	const char *cmd;
 	int done_help = 0;
@@ -944,7 +953,10 @@ int cmd_main(int argc, const char **argv)
 		strvec_push(&args, argv[i]);
 
 	while (1) {
+		trace_printf("Wink cmd_main: TOL\n");
+		trace_printf("Wink cmd_main: call run_argv\n");
 		int was_alias = run_argv(&args);
+		trace_printf("Wink cmd_main: retf run_argv\n");
 		if (errno != ENOENT)
 			break;
 		if (was_alias) {
@@ -969,5 +981,6 @@ int cmd_main(int argc, const char **argv)
 		cmd, strerror(errno));
 	strvec_clear(&args);
 
+	trace_printf("Wink cmd_main:-\n");
 	return 1;
 }
