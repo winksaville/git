@@ -1504,34 +1504,18 @@ static struct combine_diff_path *combined_objfind(struct diff_options *opt,
 #include <stdio.h>
 #include <stdlib.h>
 
-void print_stack_trace(void) {
-    void *array[10];
-    size_t size;
-    char **strings;
-    size_t i;
-
-    size = backtrace(array, 10);
-    strings = backtrace_symbols(array, size);
-
-    printf("Stack trace:\n");
-    for (i = 0; i < size; i++) {
-        printf("  %s\n", strings[i]);
-    }
-
-    free(strings);
-}
-
 void diff_tree_combined(const struct object_id *oid,
 			const struct oid_array *parents,
 			struct rev_info *rev)
 {
 	trace_printf("Wink diff_tree_combined:+\n");
-	print_stack_trace();
 	struct diff_options *opt = &rev->diffopt;
 	struct diff_options diffopts;
 	struct combine_diff_path *p, *paths;
 	int i, num_paths, needsep, show_log_first, num_parent = parents->nr;
 	int need_generic_pathscan;
+
+	trace_printf("Wink diff_tree_compbined: oid=%s opt->output_format=0x%04x\n", oid_to_hex(oid), opt->output_format);
 
 	if (opt->ignore_regex_nr)
 		die("combined diff and '%s' cannot be used together",
@@ -1678,8 +1662,12 @@ void diff_tree_combined(const struct object_id *oid,
 		if (opt->output_format & (DIFF_FORMAT_RAW |
 					  DIFF_FORMAT_NAME |
 					  DIFF_FORMAT_NAME_STATUS)) {
-			for (p = paths; p; p = p->next)
+			trace_printf("Wink diff_tree_combined: show_raw_diff loop DIFF_FORMAT RAW | NAME | NAME_STATUS\n");
+			for (p = paths; p; p = p->next) {
+				trace_printf("Wink diff_tree_combined: show_raw_diff TOL p->oid=%s p->path=%s\n", oid_to_hex(&p->oid), p->path);
 				show_raw_diff(p, num_parent, rev);
+			}
+			trace_printf("Wink diff_tree_combined: show_raw_diff loop DIFF_FORMAT RAW | NAME | NAME_STATUS COMPLETE\n");
 			needsep = 1;
 		}
 		else if (opt->output_format & STAT_FORMAT_MASK)
@@ -1688,11 +1676,15 @@ void diff_tree_combined(const struct object_id *oid,
 			handle_combined_callback(opt, paths, num_parent, num_paths);
 
 		if (opt->output_format & DIFF_FORMAT_PATCH) {
+			trace_printf("Wink diff_tree_combined: show_patch_diff loop DIFF_FORMAT_PATCH\n");
 			if (needsep)
 				printf("%s%c", diff_line_prefix(opt),
 				       opt->line_termination);
-			for (p = paths; p; p = p->next)
+			for (p = paths; p; p = p->next) {
+				trace_printf("Wink diff_tree_combined: show_patch_diff TOL p->oid=%s p->path=%s\n", oid_to_hex(&p->oid), p->path);
 				show_patch_diff(p, num_parent, 0, rev);
+			}
+			trace_printf("Wink diff_tree_combined: show_patch_diff loop DIFF_FORMAT_PATCH COMPLETE\n");
 		}
 		trace_printf("Wink diff_tree_combined: num_path=%d and it's not zero COMPLETED\n", num_paths);
 	}
