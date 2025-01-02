@@ -65,7 +65,10 @@ static struct combine_diff_path *intersect_paths(
 			}
 			path = q->queue[i]->two->path;
 			len = strlen(path);
-			p = xmalloc(combine_diff_path_size(num_parent, len));
+			//p = xmalloc(combine_diff_path_size(num_parent, len));
+			size_t xmalloc_len = combine_diff_path_size(num_parent, len);
+			p = xmalloc(xmalloc_len);
+			trace_printf("Wink intersect_paths: xmalloc_len=%ld p=%p\n", xmalloc_len, p);
 			p->path = (char *) &(p->parent[num_parent]);
 			memcpy(p->path, path, len);
 			p->path[len] = 0;
@@ -1613,6 +1616,7 @@ void diff_tree_combined(const struct object_id *oid,
 			 (DIFF_PICKAXE_KINDS_MASK & ~DIFF_PICKAXE_KIND_OBJFIND)) ||
 			opt->filter;
 
+	need_generic_pathscan = true; // fixes the segfault in the "find out number of surviving paths below"
 	if (need_generic_pathscan) {
 		trace_printf("Wink diff_tree_combined: need_generic_pathscan is true\n");
 		trace_printf("Wink diff_tree_combined: call find_paths_generic\n");
@@ -1628,7 +1632,6 @@ void diff_tree_combined(const struct object_id *oid,
 	}
 	else {
 		trace_printf("Wink diff_tree_combined: need_generic_pathscan is false\n");
-
 		trace_printf("Wink diff_tree_combined: call find_paths_multitree\n");
 		int stat_opt;
 		paths = find_paths_multitree(oid, parents, &diffopts);
@@ -1657,11 +1660,88 @@ void diff_tree_combined(const struct object_id *oid,
 	}
 
 	/* find out number of surviving paths */
-	trace_printf("Wink diff_tree_combined: find number of surviving paths\n");
+	trace_printf("Wink diff_tree_combined: find number of surviving paths num_parent=%d\n", num_parent);
 	for (num_paths = 0, p = paths; p; p = p->next) {
-		trace_printf("Wink diff_tree_combined: %d: path = %s\n", num_paths, p->path);
+		trace_printf("Wink diff_tree_combined: %d: path=%s mode=%0x oid=%s\n", num_paths, p->path, p->mode, oid_to_hex(&p->oid));
+		// For some unknowns reasons, the following loop is causing a segfault
+		// it seems if you use the faster find_paths_multitree the paren, the loop
 		for (i = 0; i < num_parent; i++) {
-			trace_printf("Wink diff_tree_combined: parent[%d].status=%c mode=%0x oid=%s path=%s\n", i, p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].path.buf);
+			// Here I've added trace_printf to see if the parent[i] info and I've found
+			// that the path.buf pointer should be NULL or a valid address as we see here
+			// when executing `GIT_TRACE=1 ./git --no-pager -C ~/prgs/git-test-repos/test-merge-conflict-repo show --cc 4184169fc0aeb32224015b990109901dd7dd9dd6`:
+			//   12:40:22.942987 combine-diff.c:1662     Wink diff_tree_combined: find number of surviving paths num_parent=3
+			//   12:40:22.942991 combine-diff.c:1664     Wink diff_tree_combined: 0: path=file.txt mode=81a4 oid=f650f889a650f8c7d795ba960284c23f3375e7cf
+			//   12:40:22.942995 combine-diff.c:1689     Wink diff_tree_combined: parent[0] 0x561cdcd51a88 status=M mode=81a4 oid=a63f94a8eeb5efe0f82c78bae9831ac3f87d4584 address of p->parent[i].path.buf=(null)
+			//   12:40:22.942999 combine-diff.c:1689     Wink diff_tree_combined: parent[1] 0x561cdcd51ad0 status=M mode=81a4 oid=67d93337d436ba4cf23e26dacc94de6d2e88d500 address of p->parent[i].path.buf=(null)
+			//   12:40:22.943002 combine-diff.c:1689     Wink diff_tree_combined: parent[2] 0x561cdcd51b18 status=M mode=81a4 oid=a5938d9ae3b80a6140af432b5cb87e4a31b82049 address of p->parent[i].path.buf=(null)
+			//   12:40:22.943005 combine-diff.c:1664     Wink diff_tree_combined: 1: path=file2.txt mode=81a4 oid=d061266fd077f9e1ec3acf20986025e4eeb92631
+			//   12:40:22.943009 combine-diff.c:1689     Wink diff_tree_combined: parent[0] 0x561cdcd51bb8 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=(null)
+			//   12:40:22.943013 combine-diff.c:1689     Wink diff_tree_combined: parent[1] 0x561cdcd51c00 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=(null)
+			//   12:40:22.943016 combine-diff.c:1689     Wink diff_tree_combined: parent[2] 0x561cdcd51c48 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=(null)
+			//   12:40:22.943019 combine-diff.c:1694     Wink diff_tree_combined: found 2 surviving paths
+
+
+			// But if you execute "diff-tree" instead: `GIT_TRACE=1 ./git --no-pager -C ~/prgs/git-test-repos/test-merge-conflict-repo diff-tree --cc 4184169fc0aeb32224015b990109901dd7dd9dd6`:
+			// It can segfault because the path.buf is not (nil) aka NULL and instead it has garbage:
+			//   12:47:07.736186 combine-diff.c:1662     Wink diff_tree_combined: find number of surviving paths num_parent=3
+			//   12:47:07.736188 combine-diff.c:1664     Wink diff_tree_combined: 0: path=file.txt mode=81a4 oid=f650f889a650f8c7d795ba960284c23f3375e7cf
+			//   Segmentation fault (core dumped)
+
+			// Here is the trace_printf that segfaults with diff-tree
+			//trace_printf("Wink diff_tree_combined: parent[%d] %p status=%c mode=%x oid=%s address of p->parent[i].path.buf=%s\n", i, &p->parent[i],  p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].path.buf); 
+
+			// I noticed that the "garbage" pointers were mostly zeros, so I try to detect them and print the address instead of the string:
+			union {
+				char *ptr;
+				char buf[sizeof(void *)];
+			} ptr_bytes = { .ptr = p->parent[i].path.buf };
+
+			// Count zeros in buf and if more than 50% are zeros print the address else assume valid and print the string
+			int zero_count = 0;
+			for (int j = 0; j < sizeof(void *); j++) {
+				if (ptr_bytes.buf[j] == 0) {
+					zero_count++;
+				}
+			}
+
+			char buff[2048];
+			if (zero_count > sizeof(void *) / 2) {
+				// We're declaring the pointer is garbage and print the address.
+				// Note a NULL pointer is printed as (nil) in C so this prints ((nil))
+				snprintf(buff, sizeof(buff), "(%p)", ptr_bytes.ptr);
+			} else {
+				// Note this isn't perfect and may still segfault if the pointer is random!
+				snprintf(buff, sizeof(buff), "%s", ptr_bytes.ptr);
+			}
+			trace_printf("Wink diff_tree_combined: parent[%d] %p status=%c mode=%x oid=%s address of p->parent[i].path.buf=%s", i, &p->parent[i],  p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), buff);
+
+			// Here is the trace_printf that doesn't segfault with diff-tree
+			// but shows the garbage address; (0x500000009) & (0x900060005):
+			//   13:43:43.527233 combine-diff.c:1662     Wink diff_tree_combined: find number of surviving paths num_parent=3
+			//   13:43:43.527236 combine-diff.c:1664     Wink diff_tree_combined: 0: path=file.txt mode=81a4 oid=f650f889a650f8c7d795ba960284c23f3375e7cf
+			//   13:43:43.527240 combine-diff.c:1713     Wink diff_tree_combined: parent[0] 0x5f82d8fb6738 status=M mode=81a4 oid=a63f94a8eeb5efe0f82c78bae9831ac3f87d4584 address of p->parent[i].path.buf=(0x500000009)
+			//   13:43:43.527244 combine-diff.c:1713     Wink diff_tree_combined: parent[1] 0x5f82d8fb6780 status=M mode=81a4 oid=67d93337d436ba4cf23e26dacc94de6d2e88d500 address of p->parent[i].path.buf=((nil))
+			//   13:43:43.527247 combine-diff.c:1713     Wink diff_tree_combined: parent[2] 0x5f82d8fb67c8 status=M mode=81a4 oid=a5938d9ae3b80a6140af432b5cb87e4a31b82049 address of p->parent[i].path.buf=(0x900060005)
+			//   13:43:43.527250 combine-diff.c:1664     Wink diff_tree_combined: 1: path=file2.txt mode=81a4 oid=d061266fd077f9e1ec3acf20986025e4eeb92631
+			//   13:43:43.527255 combine-diff.c:1713     Wink diff_tree_combined: parent[0] 0x5f82d8fb6868 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   13:43:43.527258 combine-diff.c:1713     Wink diff_tree_combined: parent[1] 0x5f82d8fb68b0 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   13:43:43.527261 combine-diff.c:1713     Wink diff_tree_combined: parent[2] 0x5f82d8fb68f8 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   13:43:43.527264 combine-diff.c:1730     Wink diff_tree_combined: found 2 surviving paths
+
+			// Final note: I'm guessing the `find_paths_multitree` is not
+			// initializing the parents[FLEX_ARRAY] properly!
+			// Because if I always set need_generic_pathscan to true
+			// it doesn't segfautl and the address is always (nil)!
+			//   3:55:36.032456 combine-diff.c:1663     Wink diff_tree_combined: find number of surviving paths num_parent=3
+			//   3:55:36.032458 combine-diff.c:1665     Wink diff_tree_combined: 0: path=file.txt mode=81a4 oid=f650f889a650f8c7d795ba960284c23f3375e7cf
+			//   3:55:36.032462 combine-diff.c:1716     Wink diff_tree_combined: parent[0] 0x5fd66d6b4078 status=M mode=81a4 oid=a63f94a8eeb5efe0f82c78bae9831ac3f87d4584 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032466 combine-diff.c:1716     Wink diff_tree_combined: parent[1] 0x5fd66d6b40c0 status=M mode=81a4 oid=67d93337d436ba4cf23e26dacc94de6d2e88d500 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032470 combine-diff.c:1716     Wink diff_tree_combined: parent[2] 0x5fd66d6b4108 status=M mode=81a4 oid=a5938d9ae3b80a6140af432b5cb87e4a31b82049 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032473 combine-diff.c:1665     Wink diff_tree_combined: 1: path=file2.txt mode=81a4 oid=d061266fd077f9e1ec3acf20986025e4eeb92631
+			//   3:55:36.032476 combine-diff.c:1716     Wink diff_tree_combined: parent[0] 0x5fd66d6b41a8 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032480 combine-diff.c:1716     Wink diff_tree_combined: parent[1] 0x5fd66d6b41f0 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032483 combine-diff.c:1716     Wink diff_tree_combined: parent[2] 0x5fd66d6b4238 status=A mode=0 oid=0000000000000000000000000000000000000000 address of p->parent[i].path.buf=((nil))
+			//   3:55:36.032486 combine-diff.c:1739     Wink diff_tree_combined: found 2 surviving paths
 		}
 		num_paths++;
 	}
