@@ -25,11 +25,16 @@
 static int compare_paths(const struct combine_diff_path *one,
 			  const struct diff_filespec *two)
 {
-	if (!S_ISDIR(one->mode) && !S_ISDIR(two->mode))
-		return strcmp(one->path, two->path);
+	if (!S_ISDIR(one->mode) && !S_ISDIR(two->mode)) {
+		int result = strcmp(one->path, two->path);
+		trace_printf("Wink compare_paths: strcmp(one->path=%s, two->path=%s)=%d\n", one->path, two->path, result);
+		return result;
+	}
 
-	return base_name_compare(one->path, strlen(one->path), one->mode,
+	int result = base_name_compare(one->path, strlen(one->path), one->mode,
 				 two->path, strlen(two->path), two->mode);
+	trace_printf("Wink compare_paths: both are DIRs base_name_compare(one->path=%s, two->path=%s)=%d\n", one->path, two->path, result);
+	return result;
 }
 
 static int filename_changed(char status)
@@ -49,17 +54,22 @@ static struct combine_diff_path *intersect_paths(
 	int i, j, cmp;
 
 	if (!n) {
+		trace_printf("Wink intersect_paths: n=0 all diffs are added to curr\n");
 		for (i = 0; i < q->nr; i++) {
+			trace_printf("Wink intersect_paths: TOL i=%d\n", i);
 			int len;
 			const char *path;
-			if (diff_unmodified_pair(q->queue[i]))
+			if (diff_unmodified_pair(q->queue[i])) {
+				trace_printf("Wink intersect_paths: diff_unmodified_pair return true continue\n");
 				continue;
+			}
 			path = q->queue[i]->two->path;
 			len = strlen(path);
 			p = xmalloc(combine_diff_path_size(num_parent, len));
 			p->path = (char *) &(p->parent[num_parent]);
 			memcpy(p->path, path, len);
 			p->path[len] = 0;
+			trace_printf("Wink intersect_paths: p->path=%s\n", p->path);
 			p->next = NULL;
 			memset(p->parent, 0,
 			       sizeof(p->parent[0]) * num_parent);
@@ -75,10 +85,13 @@ static struct combine_diff_path *intersect_paths(
 				strbuf_init(&p->parent[n].path, 0);
 				strbuf_addstr(&p->parent[n].path,
 					      q->queue[i]->one->path);
+				trace_printf("Wink intersect_paths: combined_all_path && filename_changed p->parent[%d].path=%s\n", n, p->parent[n].path.buf);
 			}
+			trace_printf("Wink intersect_paths: add path=%s mode=%0x parent[%d] path=%s mode=%0x status=%c\n", p->path, p->mode, n, p->parent[n].path.buf, p->parent[n].mode, p->parent[n].status);
 			*tail = p;
 			tail = &p->next;
 		}
+		trace_printf("Wink intersect_paths:- n==0 curr=%p n=%d num_parent=%d combined_all_paths=%d\n", curr, n, num_parent, combined_all_paths);
 		return curr;
 	}
 
@@ -86,15 +99,15 @@ static struct combine_diff_path *intersect_paths(
 	 * paths in curr (linked list) and q->queue[] (array) are
 	 * both sorted in the tree order.
 	 */
+	trace_printf("Wink intersect_paths: loop through curr (linked list) and q->queue[] and compare the paths");
 	i = 0;
 	while ((p = *tail) != NULL) {
-		trace_printf("Wink intersect_paths: TOL p=%p i=%d q->nr=%d\n", p, i, q->nr);
+		trace_printf("Wink intersect_paths: TOL p=%p i=%d q->nr=%d path=%s q->queue[%d]->two=%s\n", p, i, q->nr, p->path, i, q->queue[i]->two->path);
 		cmp = ((i >= q->nr)
 		       ? -1 : compare_paths(p, q->queue[i]->two));
 
-		trace_printf("Wink intersect_paths: cmp=%d\n", cmp);
 		if (cmp < 0) {
-			trace_printf("Wink intersect_paths: cmp=%d < 0 p=%p DROPPING %s\n", cmp, p, p->path);
+			trace_printf("Wink intersect_paths: cmp=%d < 0 p=%p DROPPING no match found %s\n", cmp, p, p->path);
 			/* p->path not in q->queue[]; drop it */
 			*tail = p->next;
 			for (j = 0; j < num_parent; j++) {
@@ -104,30 +117,29 @@ static struct combine_diff_path *intersect_paths(
 					strbuf_release(&p->parent[j].path);
 				}
 			}
-			trace_printf("Wink intersect_paths: free(p=%p) DROPPING %s\n", p, p->path);
+			trace_printf("Wink intersect_paths: free(p=%p) drop %s\n", p, p->path);
 			free(p);
 			continue;
 		}
 
 		if (cmp > 0) {
-			trace_printf("Wink intersect_paths: cmp=%d > 0 SKIPPING %s\n", i, p->path);
+			trace_printf("Wink intersect_paths: cmp=%d > 0 SKIPPING q->queue[%d]=%s is missing from p->path%s\n", cmp, i, q->queue[i]->two->path, p->path);
 			/* q->queue[i] not in p->path; skip it */
 			i++;
 			continue;
 		}
 
-		trace_printf("Wink intersect_paths: cmp == 0 so q->queue[%d] is in p->path=%s, APPENDING\n", i, p->path);
 		oidcpy(&p->parent[n].oid, &q->queue[i]->one->oid);
 		p->parent[n].mode = q->queue[i]->one->mode;
 		p->parent[n].status = q->queue[i]->status;
 		if (combined_all_paths &&
 		    filename_changed(p->parent[n].status)) {
-			trace_printf("Wink intersect_paths: combining_all_paths && filename_changed addstr %s\n", q->queue[i]->one->path);
+			trace_printf("Wink intersect_paths: combining_all_paths && filename_changed add parent[%d].path %s\n", n, q->queue[i]->one->path);
 			strbuf_addstr(&p->parent[n].path,
 				      q->queue[i]->one->path);
 		}
+		trace_printf("Wink intersect_paths: cmp == 0 UPDATE new parent[%d] path=%s mode=%0x status=%c\n", n, p->parent[n].path.buf, p->parent[n].mode, p->parent[n].status);
 
-		trace_printf("Wink intersect_paths: APPENDED %s\n", q->queue[i]->one->path);
 		tail = &p->next;
 		i++;
 	}
