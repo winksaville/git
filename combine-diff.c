@@ -20,6 +20,8 @@
 #include "oid-array.h"
 #include "revision.h"
 
+#include "trace.h"
+
 static int compare_paths(const struct combine_diff_path *one,
 			  const struct diff_filespec *two)
 {
@@ -1595,8 +1597,16 @@ void diff_tree_combined(const struct object_id *oid,
 	}
 
 	/* find out number of surviving paths */
-	for (num_paths = 0, p = paths; p; p = p->next)
+	trace_printf("Wink diff_tree_combined: find number of surviving paths num_parent=%d\n", num_parent);
+	for (num_paths = 0, p = paths; p; p = p->next) {
+		trace_printf("Wink diff_tree_combined: num_paths=%d &p=%p mode=%0x, oid=%s path=%s\n", num_paths, p, p->mode, oid_to_hex(&p->oid), p->path);
+		for (i = 0; i < num_parent; i++) {
+			trace_printf("Wink diff_tree_combined:  &p->parent[%d]=%p status=%c mode=%x oid=%s path.buf=%p contents path.buf=%s\n",
+				 i, &p->parent[i], p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].path.buf, p->parent[i].path.buf);
+		}
 		num_paths++;
+	}
+	trace_printf("Wink diff_tree_combined: found %d surviving paths\n", num_paths);
 
 	/* order paths according to diffcore_order */
 	if (opt->orderfile && num_paths) {
