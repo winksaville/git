@@ -1564,6 +1564,7 @@ void diff_tree_combined(const struct object_id *oid,
 			 (DIFF_PICKAXE_KINDS_MASK & ~DIFF_PICKAXE_KIND_OBJFIND)) ||
 			opt->filter;
 
+	need_generic_pathscan = true;
 	if (need_generic_pathscan) {
 		/*
 		 * NOTE generic case also handles --stat, as it computes
