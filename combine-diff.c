@@ -1593,8 +1593,8 @@ void diff_tree_combined(const struct object_id *oid,
 	for (num_paths = 0, p = paths; p; p = p->next) {
 		trace_printf("Wink diff_tree_combined: num_paths=%d &p=%p mode=%0x, oid=%s path=%s\n", num_paths, p, p->mode, oid_to_hex(&p->oid), p->path);
 		for (i = 0; i < num_parent; i++) {
-			trace_printf("Wink diff_tree_combined:  &p->parent[%d]=%p status=%c mode=%x oid=%s path.buf=%p contents path.buf=%s\n",
-				 i, &p->parent[i], p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].path.buf, p->parent[i].path.buf);
+			trace_printf("Wink diff_tree_combined:  &p->parent[%d]=%p status=%c mode=%x oid=%s path=%s\n",
+				 i, &p->parent[i], p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].path);
 		}
 		num_paths++;
 	}
