@@ -417,11 +417,11 @@ static int show_modified(struct rev_info *revs,
 		memset(p->parent, 0, 2 * sizeof(struct combine_diff_parent));
 		p->parent[0].status = DIFF_STATUS_MODIFIED;
 		p->parent[0].mode = new_entry->ce_mode;
-		p->parent[0].path = NULL;
+		p->parent[0].changed_path = NULL;
 		oidcpy(&p->parent[0].oid, &new_entry->oid);
 		p->parent[1].status = DIFF_STATUS_MODIFIED;
 		p->parent[1].mode = old_entry->ce_mode;
-		p->parent[1].path = NULL;
+		p->parent[1].changed_path = NULL;
 		oidcpy(&p->parent[1].oid, &old_entry->oid);
 		show_combined_diff(p, 2, revs);
 		free(p);

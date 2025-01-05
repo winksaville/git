@@ -480,7 +480,7 @@ struct combine_diff_path {
 		char status;
 		unsigned int mode;
 		struct object_id oid;
-		char *path;
+		char *changed_path; // NULL unless status == 'R' or 'C', see filename_changed()
 	} parent[FLEX_ARRAY];
 };
 #define combine_diff_path_size(n, l) \

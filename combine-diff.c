@@ -66,7 +66,7 @@ static struct combine_diff_path *intersect_paths(
 			oidcpy(&p->parent[n].oid, &q->queue[i]->one->oid);
 			p->parent[n].mode = q->queue[i]->one->mode;
 			p->parent[n].status = q->queue[i]->status;
-			p->parent[n].path = combined_all_paths &&
+			p->parent[n].changed_path = combined_all_paths &&
 					    filename_changed(p->parent[n].status) ?
 					    xstrdup(q->queue[i]->one->path) : NULL;
 			*tail = p;
@@ -88,7 +88,7 @@ static struct combine_diff_path *intersect_paths(
 			/* p->path not in q->queue[]; drop it */
 			*tail = p->next;
 			for (j = 0; j < num_parent; j++)
-				free(p->parent[j].path);
+				free(p->parent[j].changed_path);
 			free(p);
 			continue;
 		}
@@ -102,7 +102,7 @@ static struct combine_diff_path *intersect_paths(
 		oidcpy(&p->parent[n].oid, &q->queue[i]->one->oid);
 		p->parent[n].mode = q->queue[i]->one->mode;
 		p->parent[n].status = q->queue[i]->status;
-		p->parent[n].path = combined_all_paths &&
+		p->parent[n].changed_path = combined_all_paths &&
 				    filename_changed(p->parent[n].status) ?
 				    xstrdup(q->queue[i]->one->path) : NULL;
 
@@ -989,8 +989,8 @@ static void show_combined_header(struct combine_diff_path *elem,
 
 	if (rev->combined_all_paths) {
 		for (i = 0; i < num_parent; i++) {
-			const char *path = elem->parent[i].path ?
-					   elem->parent[i].path :
+			const char *path = elem->parent[i].changed_path ?
+					   elem->parent[i].changed_path :
 					   elem->path;
 			if (elem->parent[i].status == DIFF_STATUS_ADDED)
 				dump_quoted_path("--- ", "", "/dev/null",
@@ -1272,8 +1272,8 @@ static void show_raw_diff(struct combine_diff_path *p, int num_parent, struct re
 
 	for (i = 0; i < num_parent; i++)
 		if (rev->combined_all_paths) {
-			const char *path = p->parent[i].path ?
-					   p->parent[i].path :
+			const char *path = p->parent[i].changed_path ?
+					   p->parent[i].changed_path :
 					   p->path;
 			write_name_quoted(path, stdout, inter_name_termination);
 		}
@@ -1637,7 +1637,7 @@ void diff_tree_combined(const struct object_id *oid,
 		struct combine_diff_path *tmp = paths;
 		paths = paths->next;
 		for (i = 0; i < num_parent; i++)
-			free(tmp->parent[i].path);
+			free(tmp->parent[i].changed_path);
 		free(tmp);
 	}
 

@@ -272,7 +272,7 @@ static struct combine_diff_path *emit_path(struct combine_diff_path *p,
 			}
 
 			p->parent[i].mode = mode_i;
-			p->parent[i].path = NULL;
+			p->parent[i].changed_path = NULL;
 			oidcpy(&p->parent[i].oid, oid_i);
 		}
 
