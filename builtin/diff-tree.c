@@ -12,14 +12,20 @@
 #include "tmp-objdir.h"
 #include "tree.h"
 
+#include "trace.h"
+
 static struct rev_info log_tree_opt;
 
 static int diff_tree_commit_oid(const struct object_id *oid)
 {
+	trace_printf("Wink diff_tree_commit_oid:+\n");
 	struct commit *commit = lookup_commit_reference(the_repository, oid);
+	trace_printf("Wink diff_tree_commit_oid: after lookup_commit_reference\n");
 	if (!commit)
 		return -1;
-	return log_tree_commit(&log_tree_opt, commit);
+	int r = log_tree_commit(&log_tree_opt, commit);
+	trace_printf("Wink diff_tree_commit_oid:-\n");
+	return r;
 }
 
 /* Diff one or more commits. */
@@ -122,6 +128,7 @@ int cmd_diff_tree(int argc,
 	int read_stdin = 0;
 	int merge_base = 0;
 
+	trace_printf("Wink cmd_diff_tree:+\n");
 	if (argc == 2 && !strcmp(argv[1], "-h"))
 		usage(diff_tree_usage);
 
@@ -178,16 +185,21 @@ int cmd_diff_tree(int argc,
 	 * second one is marked UNINTERESTING, we recover the original
 	 * order the user gave, i.e. "a..b", by swapping the trees.
 	 */
+	trace_printf("Wink cmd_diff_tree: opt->pending.nr=%d\n", opt->pending.nr);
 	switch (opt->pending.nr) {
 	case 0:
+		trace_printf("Wink cmd_diff_tree: pending.nr=0\n");
 		if (!read_stdin)
 			usage(diff_tree_usage);
 		break;
 	case 1:
+		trace_printf("Wink cmd_diff_tree: pending.nr=1\n");
 		tree1 = opt->pending.objects[0].item;
 		diff_tree_commit_oid(&tree1->oid);
+		trace_printf("Wink cmd_diff_tree: pending.nr=1 after diff_tree_commit_oid\n");
 		break;
 	case 2:
+		trace_printf("Wink cmd_diff_tree: pending.nr=2\n");
 		tree1 = opt->pending.objects[0].item;
 		tree2 = opt->pending.objects[1].item;
 		if (merge_base) {
@@ -204,6 +216,7 @@ int cmd_diff_tree(int argc,
 	}
 
 	if (read_stdin) {
+		trace_printf("Wink cmd_diff_tree: read_stdin=true\n");
 		int saved_nrl = 0;
 		int saved_dcctc = 0;
 
@@ -235,5 +248,6 @@ int cmd_diff_tree(int argc,
 		diff_free(&opt->diffopt);
 	}
 
+	trace_printf("Wink cmd_diff_tree:-\n");
 	return diff_result_code(opt);
 }

@@ -20,14 +20,21 @@
 #include "oid-array.h"
 #include "revision.h"
 
+#include "trace.h"
+
 static int compare_paths(const struct combine_diff_path *one,
 			  const struct diff_filespec *two)
 {
-	if (!S_ISDIR(one->mode) && !S_ISDIR(two->mode))
-		return strcmp(one->path, two->path);
+	if (!S_ISDIR(one->mode) && !S_ISDIR(two->mode)) {
+		int result = strcmp(one->path, two->path);
+		trace_printf("Wink compare_paths: strcmp(one->path=%s, two->path=%s)=%d\n", one->path, two->path, result);
+		return result;
+	}
 
-	return base_name_compare(one->path, strlen(one->path), one->mode,
+	int result = base_name_compare(one->path, strlen(one->path), one->mode,
 				 two->path, strlen(two->path), two->mode);
+	trace_printf("Wink compare_paths: both are DIRs base_name_compare(one->path=%s, two->path=%s)=%d\n", one->path, two->path, result);
+	return result;
 }
 
 static int filename_changed(char status)
@@ -41,22 +48,31 @@ static struct combine_diff_path *intersect_paths(
 	int num_parent,
 	int combined_all_paths)
 {
+	trace_printf("Wink intersect_paths:+ curr=%p n=%d num_parent=%d combined_all_paths=%d\n", curr, n, num_parent, combined_all_paths);
 	struct diff_queue_struct *q = &diff_queued_diff;
 	struct combine_diff_path *p, **tail = &curr;
 	int i, j, cmp;
 
 	if (!n) {
+		trace_printf("Wink intersect_paths: n=0 all diffs are added to curr\n");
 		for (i = 0; i < q->nr; i++) {
+			trace_printf("Wink intersect_paths: TOL i=%d\n", i);
 			int len;
 			const char *path;
-			if (diff_unmodified_pair(q->queue[i]))
+			if (diff_unmodified_pair(q->queue[i])) {
+				trace_printf("Wink intersect_paths: diff_unmodified_pair return true continue\n");
 				continue;
+			}
 			path = q->queue[i]->two->path;
 			len = strlen(path);
-			p = xmalloc(combine_diff_path_size(num_parent, len));
+			//p = xmalloc(combine_diff_path_size(num_parent, len));
+			size_t xmalloc_len = combine_diff_path_size(num_parent, len);
+			p = xmalloc(xmalloc_len);
+			trace_printf("Wink intersect_paths: xmalloc_len=%ld p=%p\n", xmalloc_len, p);
 			p->path = (char *) &(p->parent[num_parent]);
 			memcpy(p->path, path, len);
 			p->path[len] = 0;
+			trace_printf("Wink intersect_paths: p->path=%s\n", p->path);
 			p->next = NULL;
 			memset(p->parent, 0,
 			       sizeof(p->parent[0]) * num_parent);
@@ -69,9 +85,15 @@ static struct combine_diff_path *intersect_paths(
 			p->parent[n].changed_path = combined_all_paths &&
 					    filename_changed(p->parent[n].status) ?
 					    xstrdup(q->queue[i]->one->path) : NULL;
+			if (combined_all_paths &&
+			    filename_changed(p->parent[n].status)) {
+				trace_printf("Wink intersect_paths: combined_all_path && filename_changed p->parent[%d].changed_path=%s\n", n, p->parent[n].changed_path);
+			}
+			trace_printf("Wink intersect_paths: add path=%s mode=%0x parent[%d] mode=%0x status=%c changed_path=%s\n", p->path, p->mode, n, p->parent[n].mode, p->parent[n].status, p->parent[n].changed_path);
 			*tail = p;
 			tail = &p->next;
 		}
+		trace_printf("Wink intersect_paths:- n==0 curr=%p n=%d num_parent=%d combined_all_paths=%d\n", curr, n, num_parent, combined_all_paths);
 		return curr;
 	}
 
@@ -79,21 +101,28 @@ static struct combine_diff_path *intersect_paths(
 	 * paths in curr (linked list) and q->queue[] (array) are
 	 * both sorted in the tree order.
 	 */
+	trace_printf("Wink intersect_paths: loop through curr (linked list) and q->queue[] and compare the paths");
 	i = 0;
 	while ((p = *tail) != NULL) {
+		trace_printf("Wink intersect_paths: TOL p=%p i=%d q->nr=%d path=%s q->queue[%d]->two=%s\n", p, i, q->nr, p->path, i, q->queue[i]->two->path);
 		cmp = ((i >= q->nr)
 		       ? -1 : compare_paths(p, q->queue[i]->two));
 
 		if (cmp < 0) {
+			trace_printf("Wink intersect_paths: cmp=%d < 0 p=%p DROPPING no match found %s\n", cmp, p, p->path);
 			/* p->path not in q->queue[]; drop it */
 			*tail = p->next;
-			for (j = 0; j < num_parent; j++)
+			for (j = 0; j < num_parent; j++) {
+				trace_printf("Wink intersect_paths: drop p->parent[j].changed_path=%s\n", p->parent[j].changed_path);
 				free(p->parent[j].changed_path);
+			}
+			trace_printf("Wink intersect_paths: free(p=%p) drop %s\n", p, p->path);
 			free(p);
 			continue;
 		}
 
 		if (cmp > 0) {
+			trace_printf("Wink intersect_paths: cmp=%d > 0 SKIPPING q->queue[%d]=%s is missing from p->path%s\n", cmp, i, q->queue[i]->two->path, p->path);
 			/* q->queue[i] not in p->path; skip it */
 			i++;
 			continue;
@@ -105,10 +134,17 @@ static struct combine_diff_path *intersect_paths(
 		p->parent[n].changed_path = combined_all_paths &&
 				    filename_changed(p->parent[n].status) ?
 				    xstrdup(q->queue[i]->one->path) : NULL;
+		trace_printf("Wink intersect_paths: cmp == 0 UPDATE new parent[%d] mode=%0x status=%c path_changed=%d changed_path=%s\n",
+			n,
+			p->parent[n].mode,
+			p->parent[n].status,
+			combined_all_paths && filename_changed(p->parent[n].status),
+			p->parent[n].changed_path);
 
 		tail = &p->next;
 		i++;
 	}
+	trace_printf("Wink intersect_paths:- curr=%p n=%d num_parent=%d combined_all_paths=%d\n", curr, n, num_parent, combined_all_paths);
 	return curr;
 }
 
@@ -1385,6 +1421,7 @@ static struct combine_diff_path *find_paths_generic(const struct object_id *oid,
 	struct diff_options *opt,
 	int combined_all_paths)
 {
+	trace_printf("Wink find_paths_generic:+ oid=%s parents->nr=%ld combined_all_paths=%0x\n", oid_to_hex(oid), parents->nr, combined_all_paths);
 	struct combine_diff_path *paths = NULL;
 	int i, num_parent = parents->nr;
 	int output_format = opt->output_format;
@@ -1396,6 +1433,7 @@ static struct combine_diff_path *find_paths_generic(const struct object_id *oid,
 
 	/* D(A,P1...Pn) = D(A,P1) ^ ... ^ D(A,Pn)  (wrt paths) */
 	for (i = 0; i < num_parent; i++) {
+		trace_printf("Wink find_paths_generic: TOL\n");
 		/*
 		 * show stat against the first parent even when doing
 		 * combined diff.
@@ -1405,15 +1443,21 @@ static struct combine_diff_path *find_paths_generic(const struct object_id *oid,
 			opt->output_format = stat_opt;
 		else
 			opt->output_format = DIFF_FORMAT_NO_OUTPUT;
+		trace_printf("Wink find_paths_generic: call diff_tree_oid(%s, %s)\n", oid_to_hex(oid), oid_to_hex(&parents->oid[i]));
 		diff_tree_oid(&parents->oid[i], oid, "", opt);
+		trace_printf("Wink find_paths_generic: call diffcore_std\n");
 		diffcore_std(opt);
+		trace_printf("Wink find_paths_generic: call intersect_paths paths=%p\n", paths);
 		paths = intersect_paths(paths, i, num_parent,
 					combined_all_paths);
+		trace_printf("Wink find_paths_generic: retf intersect_paths paths=%p\n", paths);
 
 		/* if showing diff, show it in requested order */
 		if (opt->output_format != DIFF_FORMAT_NO_OUTPUT &&
 		    orderfile) {
+			trace_printf("Wink find_paths_generic: call diffcore_order(%s)\n", orderfile);
 			diffcore_order(orderfile);
+			trace_printf("Wink find_paths_generic: retf diffcore_order(%s)\n", orderfile);
 		}
 
 		diff_flush(opt);
@@ -1421,6 +1465,7 @@ static struct combine_diff_path *find_paths_generic(const struct object_id *oid,
 
 	opt->output_format = output_format;
 	opt->orderfile = orderfile;
+	trace_printf("Wink find_paths_generic:- oid=%s parents->nr=%ld combined_all_paths=%0x\n", oid_to_hex(oid), parents->nr, combined_all_paths);
 	return paths;
 }
 
@@ -1490,15 +1535,22 @@ static struct combine_diff_path *combined_objfind(struct diff_options *opt,
 	return ret;
 }
 
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 void diff_tree_combined(const struct object_id *oid,
 			const struct oid_array *parents,
 			struct rev_info *rev)
 {
+	trace_printf("Wink diff_tree_combined:+\n");
 	struct diff_options *opt = &rev->diffopt;
 	struct diff_options diffopts;
 	struct combine_diff_path *p, *paths;
 	int i, num_paths, needsep, show_log_first, num_parent = parents->nr;
 	int need_generic_pathscan;
+
+	trace_printf("Wink diff_tree_combined: oid=%s opt->output_format=0x%04x\n", oid_to_hex(oid), opt->output_format);
 
 	if (opt->ignore_regex_nr)
 		die("combined diff and '%s' cannot be used together",
@@ -1514,13 +1566,19 @@ void diff_tree_combined(const struct object_id *oid,
 	show_log_first = !!rev->loginfo && !rev->no_commit_id;
 	needsep = 0;
 	if (show_log_first) {
+		trace_printf("Wink diff_tree_combined: show_log_first is true\n");
+
+		trace_printf("Wink diff_tree_combined: call show_log\n");
 		show_log(rev);
+		trace_printf("Wink diff_tree_combined: retf show_log\n");
 
 		if (rev->verbose_header && opt->output_format &&
 		    opt->output_format != DIFF_FORMAT_NO_OUTPUT &&
 		    !commit_format_is_empty(rev->commit_format))
 			printf("%s%c", diff_line_prefix(opt),
 			       opt->line_termination);
+
+		trace_printf("Wink diff_tree_combined: show_log_first is true COMPLETED\n");
 	}
 
 	diffopts = *opt;
@@ -1546,6 +1604,7 @@ void diff_tree_combined(const struct object_id *oid,
 	 *
 	 * NOTE please keep this semantically in sync with diffcore_std()
 	 */
+	trace_printf("Wink diff_tree_combined: find set of paths that everybody touches\n");
 	need_generic_pathscan = opt->skip_stat_unmatch	||
 			opt->flags.follow_renames	||
 			opt->break_opt != -1	||
@@ -1555,6 +1614,8 @@ void diff_tree_combined(const struct object_id *oid,
 			opt->filter;
 
 	if (need_generic_pathscan) {
+		trace_printf("Wink diff_tree_combined: need_generic_pathscan is true\n");
+		trace_printf("Wink diff_tree_combined: call find_paths_generic\n");
 		/*
 		 * NOTE generic case also handles --stat, as it computes
 		 * diff(sha1,parent_i) for all i to do the job, specifically
@@ -1562,10 +1623,15 @@ void diff_tree_combined(const struct object_id *oid,
 		 */
 		paths = find_paths_generic(oid, parents, &diffopts,
 					   rev->combined_all_paths);
+		trace_printf("Wink diff_tree_combined: retf find_paths_generic\n");
+		trace_printf("Wink diff_tree_combined: need_generic_pathscan is true COMPLETED\n");
 	}
 	else {
+		trace_printf("Wink diff_tree_combined: need_generic_pathscan is false\n");
+		trace_printf("Wink diff_tree_combined: call find_paths_multitree\n");
 		int stat_opt;
 		paths = find_paths_multitree(oid, parents, &diffopts);
+		trace_printf("Wink diff_tree_combined: retf find_paths_multitree\n");
 
 		if (opt->pickaxe_opts & DIFF_PICKAXE_KIND_OBJFIND)
 			paths = combined_objfind(opt, paths, num_parent);
@@ -1576,6 +1642,7 @@ void diff_tree_combined(const struct object_id *oid,
 		 */
 		stat_opt = opt->output_format & STAT_FORMAT_MASK;
 		if (stat_opt) {
+			trace_printf("Wink diff_tree_combined: stat_opt is true\n");
 			diffopts.output_format = stat_opt;
 
 			diff_tree_oid(&parents->oid[0], oid, "", &diffopts);
@@ -1583,39 +1650,64 @@ void diff_tree_combined(const struct object_id *oid,
 			if (opt->orderfile)
 				diffcore_order(opt->orderfile);
 			diff_flush(&diffopts);
+			trace_printf("Wink diff_tree_combined: stat_opt is true COMPLETED\n");
 		}
+		trace_printf("Wink diff_tree_combined: need_generic_pathscan is false COMPLETED\n");
 	}
 
 	/* find out number of surviving paths */
-	for (num_paths = 0, p = paths; p; p = p->next)
+	trace_printf("Wink diff_tree_combined: find number of surviving paths num_parent=%d\n", num_parent);
+	for (num_paths = 0, p = paths; p; p = p->next) {
+		trace_printf("Wink diff_tree_combined: num_paths=%d &p=%p mode=%0x, oid=%s path=%s\n", num_paths, p, p->mode, oid_to_hex(&p->oid), p->path);
+		for (i = 0; i < num_parent; i++) {
+			trace_printf("Wink diff_tree_combined:  &p->parent[%d]=%p status=%c mode=%x oid=%s changed_path=%s\n",
+				 i, &p->parent[i], p->parent[i].status, p->parent[i].mode, oid_to_hex(&p->parent[i].oid), p->parent[i].changed_path);
+		}
 		num_paths++;
+	}
+	trace_printf("Wink diff_tree_combined: found %d surviving paths\n", num_paths);
 
 	/* order paths according to diffcore_order */
 	if (opt->orderfile && num_paths) {
+		trace_printf("Wink diff_tree_combined: order paths according to diffcore_order\n");
 		struct obj_order *o;
 
 		ALLOC_ARRAY(o, num_paths);
 		for (i = 0, p = paths; p; p = p->next, i++)
 			o[i].obj = p;
+		trace_printf("Wink diff_tree_combined: call order_objects\n");
 		order_objects(opt->orderfile, path_path, o, num_paths);
+		trace_printf("Wink diff_tree_combined: retf order_objects\n");
+
+		trace_printf("Wink diff_tree_combined: create a link list\n");
 		for (i = 0; i < num_paths - 1; i++) {
 			p = o[i].obj;
+			trace_printf("Wink diff_tree_combined: this path=%p\n", p);
 			p->next = o[i+1].obj;
 		}
 
 		p = o[num_paths-1].obj;
+		trace_printf("Wink diff_tree_combined: set last parent %p->next to NULL\n", p);
 		p->next = NULL;
+
 		paths = o[0].obj;
+		trace_printf("Wink diff_tree_combined: set paths=%p\n", paths);
 		free(o);
+		trace_printf("Wink diff_tree_combined: order paths according to diffcore_order COMPETED\n");
 	}
 
 
 	if (num_paths) {
+		trace_printf("Wink diff_tree_combined: num_path=%d and it's not zero\n", num_paths);
 		if (opt->output_format & (DIFF_FORMAT_RAW |
 					  DIFF_FORMAT_NAME |
 					  DIFF_FORMAT_NAME_STATUS)) {
-			for (p = paths; p; p = p->next)
+			trace_printf("Wink diff_tree_combined: show_raw_diff loop DIFF_FORMAT RAW | NAME | NAME_STATUS\n");
+			for (p = paths; p; p = p->next) {
+				trace_printf("Wink diff_tree_combined: show_raw_diff TOL p->oid=%s p->path=%s\n", oid_to_hex(&p->oid), p->path);
 				show_raw_diff(p, num_parent, rev);
+			}
+			trace_printf("Wink diff_tree_combined: show_raw_diff loop DIFF_FORMAT RAW | NAME | NAME_STATUS COMPLETE\n");
 			needsep = 1;
 		}
 		else if (opt->output_format & STAT_FORMAT_MASK)
@@ -1624,15 +1716,21 @@ void diff_tree_combined(const struct object_id *oid,
 			handle_combined_callback(opt, paths, num_parent, num_paths);
 
 		if (opt->output_format & DIFF_FORMAT_PATCH) {
+			trace_printf("Wink diff_tree_combined: show_patch_diff loop DIFF_FORMAT_PATCH\n");
 			if (needsep)
 				printf("%s%c", diff_line_prefix(opt),
 				       opt->line_termination);
-			for (p = paths; p; p = p->next)
+			for (p = paths; p; p = p->next) {
+				trace_printf("Wink diff_tree_combined: show_patch_diff TOL p->oid=%s p->path=%s\n", oid_to_hex(&p->oid), p->path);
 				show_patch_diff(p, num_parent, 0, rev);
+			}
+			trace_printf("Wink diff_tree_combined: show_patch_diff loop DIFF_FORMAT_PATCH COMPLETE\n");
 		}
+		trace_printf("Wink diff_tree_combined: num_path=%d and it's not zero COMPLETED\n", num_paths);
 	}
 
 	/* Clean things up */
+	trace_printf("Wink diff_tree_combined: cleanup\n");
 	while (paths) {
 		struct combine_diff_path *tmp = paths;
 		paths = paths->next;
@@ -1641,19 +1739,30 @@ void diff_tree_combined(const struct object_id *oid,
 		free(tmp);
 	}
 
+	trace_printf("Wink diff_tree_combined: call clear_pathspec\n");
 	clear_pathspec(&diffopts.pathspec);
+	trace_printf("Wink diff_tree_combined: retf clear_pathspec\n");
+	trace_printf("Wink diff_tree_combined:-\n");
 }
 
 void diff_tree_combined_merge(const struct commit *commit,
 			      struct rev_info *rev)
 {
+	trace_printf("Wink diff_tree_combined_merge:+\n");
 	struct commit_list *parent = get_saved_parents(rev, commit);
 	struct oid_array parents = OID_ARRAY_INIT;
 
+	trace_printf("Wink diff_tree_combined_merge: loop through parents and invoking oid_array_append\n");
 	while (parent) {
+		trace_printf("Wink diff_tree_combined_merge: TOL parent oid=%s\n", oid_to_hex(&parent->item->object.oid));
 		oid_array_append(&parents, &parent->item->object.oid);
 		parent = parent->next;
 	}
+	trace_printf("Wink diff_tree_combined_merge: loop through parents and invoking oid_array_append COMPLETED\n");
+
+	trace_printf("Wink diff_tree_combined_merge: call diff_tree_combined\n");
 	diff_tree_combined(&commit->object.oid, &parents, rev);
+	trace_printf("Wink diff_tree_combined_merge: retf diff_tree_combined\n");
 	oid_array_clear(&parents);
+	trace_printf("Wink diff_tree_combined_merge:-\n");
 }

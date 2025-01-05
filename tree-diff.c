@@ -14,6 +14,8 @@
 #include "environment.h"
 #include "repository.h"
 
+#include "trace.h"
+
 /*
  * Some mode bits are also used internally for computations.
  *
@@ -729,6 +731,7 @@ void diff_tree_oid(const struct object_id *old_oid,
 		   const struct object_id *new_oid,
 		   const char *base_str, struct diff_options *opt)
 {
+	trace_printf("Wink diff_tree_oid:+\n");
 	struct strbuf base;
 
 	strbuf_init(&base, PATH_MAX);
@@ -738,6 +741,7 @@ void diff_tree_oid(const struct object_id *old_oid,
 	if (!*base_str && opt->flags.follow_renames && diff_might_be_rename())
 		try_to_follow_renames(old_oid, new_oid, &base, opt);
 
+	trace_printf("Wink diff_tree_oid:-\n");
 	strbuf_release(&base);
 }
 

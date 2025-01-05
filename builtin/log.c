@@ -47,6 +47,8 @@
 #include "tree.h"
 #include "write-or-die.h"
 
+#include "trace.h"
+
 #define MAIL_DEFAULT_WRAP 72
 #define COVER_FROM_AUTO_MAX_SUBJECT_LEN 100
 #define FORMAT_PATCH_NAME_MAX_DEFAULT 64
@@ -769,6 +771,8 @@ int cmd_show(int argc,
 	struct pathspec match_all;
 	int ret = 0;
 
+	trace_printf("Wink cmd_show:+\n");
+
 	log_config_init(&cfg);
 	init_diff_ui_defaults();
 	git_config(git_log_config, &cfg);
@@ -870,6 +874,7 @@ int cmd_show(int argc,
 	release_revisions(&rev);
 	log_config_release(&cfg);
 
+	trace_printf("Wink cmd_show:-\n");
 	return ret;
 }
 
