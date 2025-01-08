@@ -34,6 +34,8 @@
 #include "write-or-die.h"
 #include "pager.h"
 
+#include "trace.h"
+
 static struct decoration name_decoration = { "object names" };
 static int decoration_loaded;
 static int decoration_flags;
@@ -1096,6 +1098,7 @@ static int do_remerge_diff(struct rev_info *opt,
  */
 static int log_tree_diff(struct rev_info *opt, struct commit *commit, struct log_info *log)
 {
+	trace_printf("Wink log_tree_diff:+\n");
 	int showed_log;
 	struct commit_list *parents;
 	struct object_id *oid;
@@ -1115,14 +1118,18 @@ static int log_tree_diff(struct rev_info *opt, struct commit *commit, struct log
 
 	/* Root commit? */
 	if (!parents) {
+		trace_printf("Wink log_tree_diff: !parents is true so no parents this is a root commit\n");
 		if (opt->show_root_diff) {
+			trace_printf("Wink log_tree_diff: !parents && opt->show_root_diff is true\n");
 			diff_root_tree_oid(oid, "", &opt->diffopt);
 			log_tree_diff_flush(opt);
 		}
+		trace_printf("Wink log_tree_diff:- return !opt->loginfo=%d\n", !opt->loginfo);
 		return !opt->loginfo;
 	}
 
 	if (is_merge) {
+		trace_printf("Wink log_tree_diff: is_merge!=0\n");
 		int octopus = (parents->next->next != NULL);
 
 		if (opt->remerge_diff) {
@@ -1135,18 +1142,29 @@ static int log_tree_diff(struct rev_info *opt, struct commit *commit, struct log
 			}
 			return do_remerge_diff(opt, parents, oid);
 		}
-		if (opt->combine_merges)
-			return do_diff_combined(opt, commit);
+		if (opt->combine_merges) {
+			trace_printf("Wink log_tree_diff: call do_diff_combined as opt->combine_merges is true\n");
+			int r = do_diff_combined(opt, commit);
+			trace_printf("Wink log_tree_diff: retf do_diff_combined r=%d\n", r);
+			trace_printf("Wink log_tree_diff:- ret r=%d\n", r);
+			return r;
+		}
 		if (opt->separate_merges) {
+			trace_printf("Wink log_tree_diff: opt->separate_merges is true\n");
 			if (!opt->first_parent_merges) {
 				/* Show parent info for multiple diffs */
+				trace_printf("Wink log_tree_diff: log->parent = parents->item as !opt->first_parent_merges is true\n");
 				log->parent = parents->item;
 			}
-		} else
+		} else {
+			trace_printf("Wink log_tree_diff:- return 0 as opt->separate_merge is false\n");
 			return 0;
+		}
+		trace_printf("Wink log_tree_diff: completed is_merge!=0\n");
 	}
 
 	showed_log = 0;
+	trace_printf("Wink log_tree_diff: looping over parents\n");
 	for (;;) {
 		struct commit *parent = parents->item;
 
@@ -1164,11 +1182,15 @@ static int log_tree_diff(struct rev_info *opt, struct commit *commit, struct log
 		log->parent = parents->item;
 		opt->loginfo = log;
 	}
+	trace_printf("Wink log_tree_diff: looping over parents COMPLETED\n");
+
+	trace_printf("Wink log_tree_diff:- showed_log=%d\n", showed_log);
 	return showed_log;
 }
 
 int log_tree_commit(struct rev_info *opt, struct commit *commit)
 {
+	trace_printf("Wink log_tree_commit:+\n");
 	struct log_info log;
 	int shown;
 	/* maybe called by e.g. cmd_log_walk(), maybe stand-alone */
@@ -1180,12 +1202,21 @@ int log_tree_commit(struct rev_info *opt, struct commit *commit)
 	opt->diffopt.no_free = 1;
 
 	/* NEEDSWORK: no restoring of no_free?  Why? */
-	if (opt->line_level_traverse)
-		return line_log_print(opt, commit);
+	if (opt->line_level_traverse) {
+		trace_printf("Wink log_tree_commit: call line_log_print\n");
+		int r =  line_log_print(opt, commit);
+		trace_printf("Wink log_tree_commit: retf line_log_print\n");
+		trace_printf("Wink log_tree_commit:-\n");
+		return r;
+	}
 
-	if (opt->track_linear && !opt->linear && !opt->reverse_output_stage)
+	if (opt->track_linear && !opt->linear && !opt->reverse_output_stage) {
+		trace_printf("Wink log_tree_commit: output opt->break_bar\n");
 		fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);
+	}
+	trace_printf("Wink log_tree_commit: call log_tree_diff\n");
 	shown = log_tree_diff(opt, commit, &log);
+	trace_printf("Wink log_tree_commit: retf log_tree_diff shown=%d\n", shown);
 	if (!shown && opt->loginfo && opt->always_show_header) {
 		log.parent = NULL;
 		show_log(opt);
@@ -1200,5 +1231,6 @@ int log_tree_commit(struct rev_info *opt, struct commit *commit)
 	opt->diffopt.no_free = no_free;
 
 	diff_free(&opt->diffopt);
+	trace_printf("Wink log_tree_commit:-\n");
 	return shown;
 }
